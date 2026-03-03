@@ -14,8 +14,10 @@ app.use(express.json());
 
 // Database connection
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.DATABASE_URL
+        ? { rejectUnauthorized: false }
+        : false
 });
 
 // Create tables if they don't exist
@@ -87,6 +89,14 @@ app.post('/api/start-session', async (req, res) => {
     if (!userId) return res.status(400).json({ error: 'userId is required' });
 
     try {
+        // Ensure user exists first to prevent foreign key constraint violations
+        await pool.query(
+            `INSERT INTO users (id, extension_version) 
+             VALUES ($1, 'unknown') 
+             ON CONFLICT (id) DO NOTHING`,
+            [userId]
+        );
+
         const result = await pool.query(
             `INSERT INTO sessions (user_id)
              VALUES ($1)
